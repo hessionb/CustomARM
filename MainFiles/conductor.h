@@ -6,7 +6,7 @@
 // Do not touch...
 typedef struct __ConductorStruct {
 	vtI2CStruct *dev;
-	vtTempStruct *voltData;
+	vtVoltStruct *voltData;
 } vtConductorStruct;
 
 // Public API

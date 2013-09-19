@@ -224,7 +224,6 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 		}
 		#endif
 
-		#if LCD_EXAMPLE_OP==0
 		// Wait for a message
 		if (xQueueReceive(lcdPtr->inQ,(void *) &msgBuffer,portMAX_DELAY) != pdTRUE) {
 			VT_HANDLE_FATAL_ERROR(0);

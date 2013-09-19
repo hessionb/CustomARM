@@ -47,7 +47,7 @@ static portTASK_FUNCTION_PROTO( vi2cVoltUpdateTask, pvParameters );
 void vStarti2cVoltTask(vtVoltStruct *params,unsigned portBASE_TYPE uxPriority, vtI2CStruct *i2c,vtLCDStruct *lcd)
 {
 	// Create the queue that will be used to talk to this task
-	if ((params->inQ = xQueueCreate(vtTempQLen,sizeof(vtTempMsg))) == NULL) {
+	if ((params->inQ = xQueueCreate(vtVoltQLen,sizeof(vtVoltMsg))) == NULL) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
 	/* Start the task */
@@ -59,13 +59,13 @@ void vStarti2cVoltTask(vtVoltStruct *params,unsigned portBASE_TYPE uxPriority, v
 	}
 }
 
-portBASE_TYPE SendTempTimerMsg(vtVoltStruct *tempData,portTickType ticksElapsed,portTickType ticksToBlock)
+portBASE_TYPE SendVoltTimerMsg(vtVoltStruct *tempData,portTickType ticksElapsed,portTickType ticksToBlock)
 {
 	if (tempData == NULL) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
 	vtVoltMsg voltBuffer;
-	tempBuffer.length = sizeof(ticksElapsed);
+	voltBuffer.length = sizeof(ticksElapsed);
 	if (voltBuffer.length > vtVoltMaxLen) {
 		// no room for this message
 		VT_HANDLE_FATAL_ERROR(voltBuffer.length);
@@ -132,7 +132,7 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters ) {
 	// This task is implemented as a Finite State Machine.  The incoming messages are examined to see
 	//   whether or not the state should change.
 	// Temperature sensor configuration sequence (DS1621) Address 0x4F
-	if (vtI2CEnQ(devPtr,vtI2CMsgTypeTempInit,0x4F,sizeof(i2cCmdInit),i2cCmdInit,0) != pdTRUE) {
+	if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltRead,0x4F,sizeof(i2cCmdReadVals),i2cCmdReadVals,3) != pdTRUE) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
 	
@@ -153,7 +153,7 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters ) {
 				// We have three transactions on i2c to read the full temperature 
 				//   we send all three requests to the I2C thread (via a Queue) -- responses come back through the conductor thread
 				// Temperature read -- use a convenient routine defined above
-				if (vtI2CEnQ(devPtr,vtI2CMsgTypeTempRead1,0x4F,sizeof(i2cCmdReadVals),i2cCmdReadVals,3) != pdTRUE) {
+				if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltRead,0x4F,sizeof(i2cCmdReadVals),i2cCmdReadVals,3) != pdTRUE) {
 					VT_HANDLE_FATAL_ERROR(0);
 				}
 				break;
