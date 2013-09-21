@@ -64,7 +64,7 @@ void startTimerForLCD(vtLCDStruct *vtLCDdata) {
 
 // Callback function that is called by the TemperatureTimer
 //   Sends a message to the queue that is read by the Temperature Task
-void VoltTimerCallback(xTimerHandle pxTimer)
+void TempTimerCallback(xTimerHandle pxTimer)
 {
 	if (pxTimer == NULL) {
 		VT_HANDLE_FATAL_ERROR(0);
@@ -76,10 +76,10 @@ void VoltTimerCallback(xTimerHandle pxTimer)
 		vtVoltStruct *ptr = (vtVoltStruct *) pvTimerGetTimerID(pxTimer);
 		// Make this non-blocking *but* be aware that if the queue is full, this routine
 		// will not care, so if you care, you need to check something
-		/*if (SendVoltTimerMsg(ptr,tempWRITE_RATE_BASE,0) == errQUEUE_FULL) {
+		if (SendVoltTimerMsg(ptr,tempWRITE_RATE_BASE,0) == errQUEUE_FULL) {
 			// Here is where you would do something if you wanted to handle the queue being full
 			VT_HANDLE_FATAL_ERROR(0);
-		}*/
+		}
 	}
 }
 
@@ -87,7 +87,7 @@ void startTimerForVoltage(vtVoltStruct *vtVoltdata) {
 	if (sizeof(long) != sizeof(vtVoltStruct *)) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
-	xTimerHandle VoltTimerHandle = xTimerCreate((const signed char *)"Volt Timer",tempWRITE_RATE_BASE,pdTRUE,(void *) vtVoltdata,VoltTimerCallback);
+	xTimerHandle VoltTimerHandle = xTimerCreate((const signed char *)"Volt Timer",tempWRITE_RATE_BASE,pdTRUE,(void *) vtVoltdata,TempTimerCallback);
 	if (VoltTimerHandle == NULL) {
 		VT_HANDLE_FATAL_ERROR(0);
 	} else {

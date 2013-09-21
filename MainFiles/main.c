@@ -187,7 +187,7 @@ static char *pcStatusMessage = mainPASS_STATUS_MESSAGE;
 // data structure required for one I2C task
 static vtI2CStruct vtI2C0;
 // data structure required for one temperature sensor task
-static vtVoltStruct voltData;
+static vtVoltStruct voltSensorData;
 // data structure required for conductor task
 static vtConductorStruct conductorData;
 #endif
@@ -250,14 +250,14 @@ int main( void )
 	}
 	// Now, start up the task that is going to handle the temperature sensor sampling (it will talk to the I2C task and LCD task using their APIs)
 	#if USE_MTJ_LCD == 1
-	vStarti2cVoltTask(&voltData,mainI2CTEMP_TASK_PRIORITY,&vtI2C0,&vtLCDdata);
+	vStarti2cVoltTask(&voltSensorData,mainI2CTEMP_TASK_PRIORITY,&vtI2C0,&vtLCDdata);
 	#else
-	vStarti2cVoltTask(&voltData,mainI2CTEMP_TASK_PRIORITY,&vtI2C0,NULL);
+	vStarti2cVoltTask(&voltSensorData,mainI2CTEMP_TASK_PRIORITY,&vtI2C0,NULL);
 	#endif
 	// Here we set up a timer that will send messages to the Temperature sensing task.  The timer will determine how often the sensor is sampled
-	startTimerForVoltage(&voltData);
+	startTimerForVoltage(&voltSensorData);
 	// start up a "conductor" task that will move messages around
-	vStartConductorTask(&conductorData,mainCONDUCTOR_TASK_PRIORITY,&vtI2C0,&voltData);
+	vStartConductorTask(&conductorData,mainCONDUCTOR_TASK_PRIORITY,&vtI2C0,&voltSensorData);
 	#endif
 
     /* Create the USB task. MTJ: This routine has been modified from the original example (which is not a FreeRTOS standard demo) */
