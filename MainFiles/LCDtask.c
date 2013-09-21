@@ -170,6 +170,22 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 	g.position = 0;
 	g.size = 0;
 
+	#if LCD_EXAMPLE_OP==0
+	unsigned short screenColor = 0;
+	unsigned short tscr;
+	unsigned char curLine;
+	unsigned timerCount = 0;
+	unsigned screenCount = 0;
+	int xoffset = 0, yoffset = 0;
+	unsigned int xmin=0, xmax=0, ymin=0, ymax=0;
+	unsigned int x, y;
+	int i, j;
+	float hue=0, sat=0.2, light=0.2;
+	#elif LCD_EXAMPLE_OP==1
+	unsigned char picIndex = 0;
+	#else
+	Bad definition
+	#endif
 	vtLCDMsg msgBuffer;
 	vtLCDStruct *lcdPtr = (vtLCDStruct *) pvParameters;
 
@@ -197,20 +213,32 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 
 	/* Initialize the LCD and set the initial colors */
 	GLCD_Init();
-	GLCD_SetTextColor(Red);
-	GLCD_SetBackColor(Black);
-	GLCD_Clear(Black);
+	tscr = Red; // may be reset in the LCDMsgTypeTimer code below
+	screenColor = Black; // may be reset in the LCDMsgTypeTimer code below
+	GLCD_SetTextColor(tscr);
+	GLCD_SetBackColor(screenColor);
+	GLCD_Clear(screenColor);
 
-	// Label Axes
 	GLCD_DisplayString(0,0,0,(unsigned char *)"T");
 	GLCD_DisplayString(1,0,0,(unsigned char *)"i");
 	GLCD_DisplayString(2,0,0,(unsigned char *)"m");
 	GLCD_DisplayString(3,0,0,(unsigned char *)"e");
 	GLCD_DisplayString(4,0,0,(unsigned char *)" ");
-	GLCD_DisplayString(5,0,0,(unsigned char *)"s");	
+	GLCD_DisplayString(5,0,0,(unsigned char *)"s");
+	
 
 	GLCD_DisplayString(29,20,0,(unsigned char *)"Voltage(V)");
 
+
+	// Note that srand() & rand() require the use of malloc() and should not be used unless you are using
+	//   MALLOC_VERSION==1
+	#if MALLOC_VERSION==1
+	srand((unsigned) 55); // initialize the random number generator to the same seed for repeatability
+	#endif
+
+
+
+	curLine = 5;
 	// This task should never exit
 	for(;;)
 	{	
@@ -224,6 +252,7 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 		}
 		#endif
 
+		#if LCD_EXAMPLE_OP==0
 		// Wait for a message
 		if (xQueueReceive(lcdPtr->inQ,(void *) &msgBuffer,portMAX_DELAY) != pdTRUE) {
 			VT_HANDLE_FATAL_ERROR(0);
@@ -235,6 +264,121 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 
 		// Take a different action depending on the type of the message that we received
 		switch(getMsgType(&msgBuffer)) {
+		case LCDMsgTypePrint: {
+			// This will result in the text printing in the last five lines of the screen
+			char   lineBuffer[lcdCHAR_IN_LINE+1];
+			copyMsgString(lineBuffer,&msgBuffer,lcdCHAR_IN_LINE);
+			// clear the line
+			GLCD_ClearLn(curLine,1);
+			// show the text
+			GLCD_DisplayString(curLine,0,1,(unsigned char *)lineBuffer);
+			curLine++;
+			if (curLine == lcdNUM_LINES) {
+				curLine = 5;
+			}
+			break;
+		}
+		case LCDMsgTypeTimer: {
+			// Note: if I cared how long the timer update was I would call my routine
+			//    unpackTimerMsg() which would unpack the message and get that value
+			// Each timer update will cause a circle to be drawn on the top half of the screen
+			//   as explained below
+			if (timerCount == 0) {
+				/* ************************************************** */
+				// Find a new color for the screen by randomly (within limits) selecting HSL values
+				// This can be ignored unless you care about the color map
+				#if MALLOC_VERSION==1
+				hue = rand() % 360;
+				sat = (rand() % 1024) / 1023.0; sat = sat * 0.5; sat += 0.5;
+				light = (rand() % 1024) / 1023.0;	light = light * 0.8; light += 0.10;
+				#else
+				hue = (hue + 1); if (hue >= 360) hue = 0;
+				sat+=0.01; if (sat > 1.0) sat = 0.20;	
+				light+=0.03; if (light > 1.0) light = 0.20;
+				#endif
+				screenColor = hsl2rgb(hue,sat,light);
+				// Now choose a complementary value for the text color
+				hue += 180;
+				if (hue >= 360) hue -= 360;
+				tscr = hsl2rgb(hue,sat,light);
+				GLCD_SetTextColor(tscr);
+				GLCD_SetBackColor(screenColor);
+				// End of playing around with figuring out a random color
+				/* ************************************************** */
+
+				// clear the top half of the screen
+				GLCD_ClearWindow(0,0,320,120,screenColor); 
+
+				// Now we are going to draw a circle in the upper left corner of the screen
+				int	count = 200;
+				float radius;
+				float inc, val, offset = MAX_RADIUS;
+				unsigned short circleColor;
+				inc = 2*M_PI/count;
+				xmax = 0;
+				ymax = 0;
+				xmin = 50000;
+				ymin = 50000;
+				val = 0.0;
+				for (i=0;i<count;i++) {
+					// Make the circle a little thicker
+					// by actually drawing three circles w/ different radii
+					float cv = cos(val), sv=sin(val);
+					circleColor = (val*0xFFFF)/(2*M_PI);
+					GLCD_SetTextColor(circleColor);
+					for (radius=MAX_RADIUS-2.0;radius<=MAX_RADIUS;radius+=1.0) {
+						x = round(cv*radius+offset);
+						y = round(sv*radius+offset);
+						if (x > xmax) xmax = x;
+						if (y > ymax) ymax = y;
+						if (x < xmin) xmin = x;
+						if (y < ymin) ymin = y;
+						GLCD_PutPixel(x,y);	
+					}
+					val += inc;
+				}
+				// Now we are going to read the upper left square of the LCD's
+				// memory (see its data sheet for details on that) and save
+				// that into a buffer for fast re-drawing later
+				if (((xmax+1-xmin)*(ymax+1-ymin)) > BUF_LEN) {
+					// Make sure we have room for the data
+					VT_HANDLE_FATAL_ERROR(0);
+				}
+				unsigned short int *tbuffer = buffer;
+				unsigned int width = (xmax+1-xmin);
+				for (j=ymin;j<=ymax;j++) {
+					GLCD_GetPixelRow (xmin,j,width,tbuffer);
+					tbuffer += width;
+				}
+				// end of reading in the buffer
+				xoffset = xmin;
+				yoffset = ymin;
+			} else {
+				// We are going to write out the data read into the buffer
+				//   back onto the screen at a new location
+				// This is *very* fast
+
+				// First, clear out where we were
+				GLCD_ClearWindow(xoffset,yoffset,xmax+1-xmin,ymax+1-ymin,screenColor);
+				// Pick the new location
+				#if MALLOC_VERSION==1
+				xoffset = rand() % (320-(xmax+1-xmin));
+				yoffset = rand() % (120-(ymax+1-ymin));
+				#else
+				xoffset = (xoffset + 10) % (320-(xmax+1-xmin));
+				yoffset = (yoffset + 10) % (120-(ymax+1-ymin));
+				#endif
+				// Draw the bitmap
+				GLCD_Bitmap(xoffset,yoffset,xmax+1-xmin,ymax-1-ymin,(unsigned char *)buffer);
+			}
+			timerCount++;
+			if (timerCount >= 40) {	  
+				// every so often, we reset timer count and start again
+				// This isn't for any important reason, it is just to for this example code to do "stuff"
+				timerCount = 0;
+			}
+			break;
+		}
 		case LCDMsgTypeGraph: {
 		
 			// Grab value
@@ -242,17 +386,16 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 			if( value > 1024 ) value %= 1024; // Should not happen
 		   	value=(value*231)/1024;
 		   	value=232-value;
-			
-			// DEBUGGING I2C
-			//unsigned char displayMe[20];
+		   //	unsigned char displayMe[20];
 			//sprintf(displayMe,"This:%x",msgBuffer.buf[0]);
-			//GLCD_DisplayString(29,20,0,(unsigned char*)displayMe);
-			
+		//	GLCD_DisplayString(29,20,0,(unsigned char*)displayMe);
 			if(++g.position >= GRAPHSIZE) g.position = 0;
 			if(g.size < GRAPHSIZE) ++g.size;
 			g.data[g.position] = (uint8_t)value; 	
 
+
 			GLCD_ClearWindow(6,0,314,232,Black);
+			//GLCD_Clear(Black);
 
 			// Graph values
 			int i = g.position;
@@ -278,6 +421,35 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 			break;
 		}
 		} // end of switch()
+
+		// Here is a way to do debugging output via the built-in hardware -- it requires the ULINK cable and the
+		//   debugger in the Keil tools to be connected.  You can view PORT0 output in the "Debug(printf) Viewer"
+		//   under "View->Serial Windows".  You have to enable "Trace" and "Port0" in the Debug setup options.  This
+		//   should not be used if you are using Port0 for printf()
+		// There are 31 other ports and their output (and port 0's) can be seen in the "View->Trace->Records"
+		//   windows.  You have to enable the prots in the Debug setup options.  Note that unlike ITM_SendChar()
+		//   this "raw" port write is not blocking.  That means it can overrun the capability of the system to record
+		//   the trace events if you go too quickly; that won't hurt anything or change the program execution and
+		//   you can tell if it happens because the "View->Trace->Records" window will show there was an overrun.
+		//vtITMu16(vtITMPortLCD,screenColor);
+
+		#elif 	LCD_EXAMPLE_OP==1
+		// In this alternate version, we just keep redrawing a series of bitmaps as
+		//   we receive timer messages
+		// Wait for a message
+		if (xQueueReceive(lcdPtr->inQ,(void *) &msgBuffer,portMAX_DELAY) != pdTRUE) {
+			VT_HANDLE_FATAL_ERROR(0);
+		}
+		if (getMsgType(&msgBuffer) != LCDMsgTypeTimer) {
+			// In this configuration, we are only expecting to receive timer messages
+			VT_HANDLE_FATAL_ERROR(getMsgType(&msgBuffer));
+		}
+  		/* go through a  bitmap that is really a series of bitmaps */
+		picIndex = (picIndex + 1) % 9;
+		GLCD_Bmp(99,99,120,45,(unsigned char *) &ARM_Ani_16bpp[picIndex*(120*45*2)]);
+		#else
+		Bad setting
+		#endif	
 	}
 }
 

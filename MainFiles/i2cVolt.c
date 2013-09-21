@@ -59,9 +59,9 @@ void vStarti2cVoltTask(vtVoltStruct *params,unsigned portBASE_TYPE uxPriority, v
 	}
 }
 
-portBASE_TYPE SendVoltTimerMsg(vtVoltStruct *tempData,portTickType ticksElapsed,portTickType ticksToBlock)
+portBASE_TYPE SendVoltTimerMsg(vtVoltStruct *voltData,portTickType ticksElapsed,portTickType ticksToBlock)
 {
-	if (tempData == NULL) {
+	if (voltData == NULL) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
 	vtVoltMsg voltBuffer;
@@ -72,10 +72,10 @@ portBASE_TYPE SendVoltTimerMsg(vtVoltStruct *tempData,portTickType ticksElapsed,
 	}
 	memcpy(voltBuffer.buf,(char *)&ticksElapsed,sizeof(ticksElapsed));
 	voltBuffer.msgType = VoltMsgTypeTimer;
-	return(xQueueSend(tempData->inQ,(void *) (&voltBuffer),ticksToBlock));
+	return(xQueueSend(voltData->inQ,(void *) (&voltBuffer),ticksToBlock));
 }
 
-portBASE_TYPE SendVoltValueMsg(vtVoltStruct *voltData,uint8_t msgType,uint8_t *value,portTickType ticksToBlock)
+portBASE_TYPE SendVoltValueMsg(vtVoltStruct *voltData,uint8_t msgType,uint8_t *value,uint8_t size,portTickType ticksToBlock)
 {
 	vtVoltMsg voltBuffer;
 
@@ -87,19 +87,22 @@ portBASE_TYPE SendVoltValueMsg(vtVoltStruct *voltData,uint8_t msgType,uint8_t *v
 		// no room for this message
 		VT_HANDLE_FATAL_ERROR(voltBuffer.length);
 	}
-	memcpy(voltBuffer.buf,(char *)value,3*sizeof(uint8_t));
+	memcpy(voltBuffer.buf,(char *)value,size*sizeof(uint8_t)); //### 
 	voltBuffer.msgType = msgType;
 	return(xQueueSend(voltData->inQ,(void *) (&voltBuffer),ticksToBlock));
 }
+
+
+
 // End of Public API
 /*-----------------------------------------------------------*/
-
-int getMsgType(vtVoltMsg *Buffer) {
+int getMsgType(vtVoltMsg *Buffer)
+{
 	return(Buffer->msgType);
 }
 
-// Concatenates the two values
-uint16_t getValue(vtVoltMsg *Buffer) {
+uint16_t getValue(vtVoltMsg *Buffer)
+{
 	uint16_t retval = 0;
 	uint8_t high,low;
 	uint8_t *ptr = (uint8_t *) Buffer->buf;
@@ -111,19 +114,18 @@ uint16_t getValue(vtVoltMsg *Buffer) {
 }
 
 // I2C commands for the temperature sensor
-	const uint8_t i2cCmdInit[]= {0xAC,0x00};
-	const uint8_t i2cCmdReadVals[]= {0xAA};
+const uint8_t i2cCmdInit[]= {0xAC,0x00};
+const uint8_t i2cCmdStartConvert[]= {0xEE};
+const uint8_t i2cCmdStopConvert[]= {0x22};
+const uint8_t i2cCmdReadVals[]= {0xAA};
 // end of I2C command definitions
 
 // State Machine
-/*const uint8_t fsmStateInit1Sent = 1;
-const uint8_t fsmStateInit2Sent = 2;*/
-const uint8_t fsmStateVoltRead = 3;
-// end of State Machine
-
+const uint8_t fsmStateInitSent = 0;
+const uint8_t fsmStateVoltRead = 1;
 // This is the actual task that is run
-static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters ) {							
-
+static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
+{							
 	// Get the parameters
 	vtVoltStruct *param = (vtVoltStruct *) pvParameters;
 	// Get the I2C device pointer
@@ -137,14 +139,16 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters ) {
 	uint8_t currentState;
 
 	// Assumes that the I2C device (and thread) have already been initialized
+
 	// This task is implemented as a Finite State Machine.  The incoming messages are examined to see
 	//   whether or not the state should change.
+	//
 	// Temperature sensor configuration sequence (DS1621) Address 0x4F
 	if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltInit,0x4F,sizeof(i2cCmdInit),i2cCmdInit,0) != pdTRUE) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
-	currentState = fsmStateVoltRead;
-	
+	currentState = fsmStateInitSent;
+
 	// Like all good tasks, this should never exit
 	for(;;)
 	{
@@ -156,16 +160,9 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters ) {
 		// Now, based on the type of the message and the state, we decide on the new state and action to take
 		switch(getMsgType(&msgBuffer)) {
 
+			// Receive Acknowledge
 			case vtI2CMsgTypeVoltInit: {
-				if (currentState == fsmStateInit1Sent) {
-					currentState = fsmStateInit2Sent;
-					// Must wait 10ms after writing to the temperature sensor's configuration registers(per sensor data sheet)
-					//vTaskDelay(10/portTICK_RATE_MS);
-					// Tell it to start converting
-					if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltInit,0x4F,sizeof(i2cCmdStartConvert),i2cCmdStartConvert,0) != pdTRUE) {
-						VT_HANDLE_FATAL_ERROR(0);
-					}
-				} else 	if (currentState == fsmStateInit2Sent) {
+				if (currentState == fsmStateInitSent) {
 					currentState = fsmStateVoltRead;
 				} else {
 					// unexpectedly received this message
@@ -173,36 +170,37 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters ) {
 				}
 				break;
 			}
-		
-			// Send request to PIC
+
+			// Send Volt Requests
 			case VoltMsgTypeTimer: {
-				// Read in the values from the temperature sensor
-				// We have three transactions on i2c to read the full temperature 
-				//   we send all three requests to the I2C thread (via a Queue) -- responses come back through the conductor thread
-				// Temperature read -- use a convenient routine defined above
-				if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltRead,0x4F,sizeof(i2cCmdReadVals),i2cCmdReadVals,3) != pdTRUE) {
+				// Timer messages never change the state, they just cause an action (or not) 
+				if (currentState != fsmStateInitSent) {
+					if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltRead,0x4F,sizeof(i2cCmdReadVals),i2cCmdReadVals,3) != pdTRUE) {
+						VT_HANDLE_FATAL_ERROR(0);
+					}
+				} else {
+					// just ignore timer messages until initialization is complete
+				} 
+				break;
+			}
+
+			// Get Volt Data
+			case vtI2CMsgTypeVoltRead: {
+				if (currentState == fsmStateVoltRead) {
+					uint16_t value=getValue(&msgBuffer);
+					if (lcdData != NULL) {
+						if (SendLCDGraphMsg(lcdData,value,portMAX_DELAY) != pdTRUE) {
+							VT_HANDLE_FATAL_ERROR(0);
+						}
+					}
+				} else {
+					// unexpectedly received this message
 					VT_HANDLE_FATAL_ERROR(0);
 				}
 				break;
 			}
-
-			// Reading value sent back from PIC
-			case vtI2CMsgTypeVoltRead: {
-				if (currentState == fsmStateVoltRead) {
-					currentState = fsmStateVoltRead;
-				}
-				
-				// Grab value
-				uint16_t value=getValue(&msgBuffer);
-
-				// Draw graph
-				if (lcdData != NULL) {
-					if (SendLCDGraphMsg(lcdData,value,portMAX_DELAY) != pdTRUE) {
-						VT_HANDLE_FATAL_ERROR(0);
-					}
-				}
-				break;
-			}
+		
+			// Error
 			default: {
 				VT_HANDLE_FATAL_ERROR(getMsgType(&msgBuffer));
 				break;
