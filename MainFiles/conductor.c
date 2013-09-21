@@ -78,11 +78,7 @@ static portTASK_FUNCTION( vConductorUpdateTask, pvParameters )
 		//   other Q/tasks for other message types
 		// This isn't a state machine, it is just acting as a router for messages
 		switch(recvMsgType) {
-<<<<<<< HEAD
-		case vtI2CMsgTypeVoltInit: 
-=======
 		case vtI2CMsgTypeVoltInit: {
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 			SendVoltValueMsg(voltData,recvMsgType,Buffer,0,portMAX_DELAY);
 			break;
 		}

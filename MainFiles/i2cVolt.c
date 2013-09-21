@@ -87,11 +87,7 @@ portBASE_TYPE SendVoltValueMsg(vtVoltStruct *voltData,uint8_t msgType,uint8_t *v
 		// no room for this message
 		VT_HANDLE_FATAL_ERROR(voltBuffer.length);
 	}
-<<<<<<< HEAD
-	memcpy(voltBuffer.buf,(char *)value,size*sizeof(uint8_t));
-=======
 	memcpy(voltBuffer.buf,(char *)value,size*sizeof(uint8_t)); //### 
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 	voltBuffer.msgType = msgType;
 	return(xQueueSend(voltData->inQ,(void *) (&voltBuffer),ticksToBlock));
 }
@@ -119,22 +115,14 @@ uint16_t getValue(vtVoltMsg *Buffer)
 
 // I2C commands for the temperature sensor
 const uint8_t i2cCmdInit[]= {0xAC,0x00};
-<<<<<<< HEAD
-=======
 const uint8_t i2cCmdStartConvert[]= {0xEE};
 const uint8_t i2cCmdStopConvert[]= {0x22};
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 const uint8_t i2cCmdReadVals[]= {0xAA};
 // end of I2C command definitions
 
 // State Machine
 const uint8_t fsmStateInitSent = 0;
 const uint8_t fsmStateVoltRead = 1;
-<<<<<<< HEAD
-// end of State Machine
-
-=======
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 // This is the actual task that is run
 static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 {							
@@ -159,13 +147,8 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 	if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltInit,0x4F,sizeof(i2cCmdInit),i2cCmdInit,0) != pdTRUE) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
-<<<<<<< HEAD
-	currentState = fsmStateVoltInit;
-	
-=======
 	currentState = fsmStateInitSent;
 
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 	// Like all good tasks, this should never exit
 	for(;;)
 	{
@@ -179,13 +162,8 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 
 			// Receive Acknowledge
 			case vtI2CMsgTypeVoltInit: {
-<<<<<<< HEAD
-				if (currentState == fsmStateInit1Sent) {
-					currentState = fsmStateInit2Sent;
-=======
 				if (currentState == fsmStateInitSent) {
 					currentState = fsmStateVoltRead;
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 				} else {
 					// unexpectedly received this message
 					VT_HANDLE_FATAL_ERROR(0);
@@ -209,14 +187,7 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 			// Get Volt Data
 			case vtI2CMsgTypeVoltRead: {
 				if (currentState == fsmStateVoltRead) {
-<<<<<<< HEAD
-					currentState = fsmStateVoltRead;
-					// Grab value
 					uint16_t value=getValue(&msgBuffer);
-					// Draw graph
-=======
-					uint16_t value=getValue(&msgBuffer);
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 					if (lcdData != NULL) {
 						if (SendLCDGraphMsg(lcdData,value,portMAX_DELAY) != pdTRUE) {
 							VT_HANDLE_FATAL_ERROR(0);
@@ -228,11 +199,7 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 				}
 				break;
 			}
-<<<<<<< HEAD
-			
-=======
 		
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 			// Error
 			default: {
 				VT_HANDLE_FATAL_ERROR(getMsgType(&msgBuffer));

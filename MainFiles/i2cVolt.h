@@ -39,9 +39,5 @@ portBASE_TYPE SendVoltTimerMsg(vtVoltStruct *voltData,portTickType ticksElapsed,
 //   ticksToBlock -- how long the routine should wait if the queue is full
 // Return:
 //   Result of the call to xQueueSend()
-<<<<<<< HEAD
-portBASE_TYPE SendTempValueMsg(vtVoltStruct *voltData,uint8_t msgType,uint8_t *value,uint8_t size,portTickType ticksToBlock);
-=======
 portBASE_TYPE SendVoltValueMsg(vtVoltStruct *voltData,uint8_t msgType,uint8_t *value,uint8_t size,portTickType ticksToBlock);
->>>>>>> 0cc7d3535679f340f1d06e7b224d3a92796ea179
 #endif
