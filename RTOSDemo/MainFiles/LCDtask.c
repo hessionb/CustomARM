@@ -44,7 +44,6 @@ typedef struct __vtLCDMsg {
 
 /* definition for the LCD task. */
 static portTASK_FUNCTION_PROTO( vLCDUpdateTask, pvParameters );
-
 /*-----------------------------------------------------------*/
 
 void StartLCDTask(vtLCDStruct *ptr, unsigned portBASE_TYPE uxPriority)
@@ -115,24 +114,20 @@ portBASE_TYPE SendLCDGraphMsg(vtLCDStruct *lcdData,uint16_t data,portTickType ti
 
 // Private routines used to unpack the message buffers
 //   I do not want to access the message buffer data structures outside of these routines
-portTickType unpackTimerMsg(vtLCDMsg *lcdBuffer)
-{
+portTickType unpackTimerMsg(vtLCDMsg *lcdBuffer) {
 	portTickType *ptr = (portTickType *) lcdBuffer->buf;
 	return(*ptr);
 }
 
-int getMsgType(vtLCDMsg *lcdBuffer)
-{
+int getMsgType(vtLCDMsg *lcdBuffer) {
 	return(lcdBuffer->msgType);
 } 
 
-int getMsgLength(vtLCDMsg *lcdBuffer)
-{
+int getMsgLength(vtLCDMsg *lcdBuffer) {
 	return(lcdBuffer->msgType);
 }
 
-void copyMsgString(char *target,vtLCDMsg *lcdBuffer,int targetMaxLen)
-{
+void copyMsgString(char *target,vtLCDMsg *lcdBuffer,int targetMaxLen) {
 	strncpy(target,(char *)(lcdBuffer->buf),targetMaxLen);
 }
 
@@ -169,6 +164,7 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 	struct Graph g;
 	g.position = 0;
 	g.size = 0;
+	uint8_t count = 0;
 
 	#if LCD_EXAMPLE_OP==0
 	unsigned short screenColor = 0;
@@ -226,17 +222,13 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 	GLCD_DisplayString(4,0,0,(unsigned char *)" ");
 	GLCD_DisplayString(5,0,0,(unsigned char *)"s");
 	
-
 	GLCD_DisplayString(29,20,0,(unsigned char *)"Voltage(V)");
-
 
 	// Note that srand() & rand() require the use of malloc() and should not be used unless you are using
 	//   MALLOC_VERSION==1
 	#if MALLOC_VERSION==1
 	srand((unsigned) 55); // initialize the random number generator to the same seed for repeatability
 	#endif
-
-
 
 	curLine = 5;
 	// This task should never exit
@@ -251,8 +243,7 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 			VT_HANDLE_FATAL_ERROR(0);
 		}
 		#endif
-
-		#if LCD_EXAMPLE_OP==0
+		
 		// Wait for a message
 		if (xQueueReceive(lcdPtr->inQ,(void *) &msgBuffer,portMAX_DELAY) != pdTRUE) {
 			VT_HANDLE_FATAL_ERROR(0);
@@ -393,25 +384,24 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 			if(g.size < GRAPHSIZE) ++g.size;
 			g.data[g.position] = (uint8_t)value; 	
 
+			if( count++ >= 3 ) {
+				GLCD_ClearWindow(6,0,314,232,Black);
+				// Graph values
+				int i = g.position;
+				int dataCount = 0;
+				do {
+					int yvalue = g.data[i];
+					int xvalue = 320-(dataCount*2);
 
-			GLCD_ClearWindow(6,0,314,232,Black);
-			//GLCD_Clear(Black);
+					GLCD_PutPixel(xvalue,yvalue);
+					GLCD_PutPixel(xvalue-1,yvalue);
+					GLCD_PutPixel(xvalue,yvalue-1);
+					GLCD_PutPixel(xvalue-1,yvalue-1);				
 
-			// Graph values
-			int i = g.position;
-			int dataCount = 0;
-			do {
-				int yvalue = g.data[i];
-				int xvalue = 320-(dataCount*2);
-
-				GLCD_PutPixel(xvalue,yvalue);
-				GLCD_PutPixel(xvalue-1,yvalue);
-				GLCD_PutPixel(xvalue,yvalue-1);
-				GLCD_PutPixel(xvalue-1,yvalue-1);				
-
-				if(++dataCount >= g.size) break;
-				if(--i < 0) i = GRAPHSIZE-1;	
-			} while(i != g.position);
+					if(++dataCount >= g.size) break;
+					if(--i < 0) i = GRAPHSIZE-1;	
+				} while(i != g.position);
+			}
 			
 			break;
 		} 
@@ -420,36 +410,7 @@ static portTASK_FUNCTION( vLCDUpdateTask, pvParameters )
 			VT_HANDLE_FATAL_ERROR(getMsgType(&msgBuffer));
 			break;
 		}
-		} // end of switch()
-
-		// Here is a way to do debugging output via the built-in hardware -- it requires the ULINK cable and the
-		//   debugger in the Keil tools to be connected.  You can view PORT0 output in the "Debug(printf) Viewer"
-		//   under "View->Serial Windows".  You have to enable "Trace" and "Port0" in the Debug setup options.  This
-		//   should not be used if you are using Port0 for printf()
-		// There are 31 other ports and their output (and port 0's) can be seen in the "View->Trace->Records"
-		//   windows.  You have to enable the prots in the Debug setup options.  Note that unlike ITM_SendChar()
-		//   this "raw" port write is not blocking.  That means it can overrun the capability of the system to record
-		//   the trace events if you go too quickly; that won't hurt anything or change the program execution and
-		//   you can tell if it happens because the "View->Trace->Records" window will show there was an overrun.
-		//vtITMu16(vtITMPortLCD,screenColor);
-
-		#elif 	LCD_EXAMPLE_OP==1
-		// In this alternate version, we just keep redrawing a series of bitmaps as
-		//   we receive timer messages
-		// Wait for a message
-		if (xQueueReceive(lcdPtr->inQ,(void *) &msgBuffer,portMAX_DELAY) != pdTRUE) {
-			VT_HANDLE_FATAL_ERROR(0);
-		}
-		if (getMsgType(&msgBuffer) != LCDMsgTypeTimer) {
-			// In this configuration, we are only expecting to receive timer messages
-			VT_HANDLE_FATAL_ERROR(getMsgType(&msgBuffer));
-		}
-  		/* go through a  bitmap that is really a series of bitmaps */
-		picIndex = (picIndex + 1) % 9;
-		GLCD_Bmp(99,99,120,45,(unsigned char *) &ARM_Ani_16bpp[picIndex*(120*45*2)]);
-		#else
-		Bad setting
-		#endif	
+		} // end of switch()	
 	}
 }
 
