@@ -10,7 +10,8 @@ typedef struct __VoltStruct {
 	xQueueHandle inQ;
 } vtVoltStruct;
 // Maximum length of a message that can be received by this task
-#define vtVoltMaxLen   (sizeof(portTickType))
+//#define vtVoltMaxLen   (sizeof(portTickType))
+#define vtVoltMaxLen 8
 
 // Public API
 //

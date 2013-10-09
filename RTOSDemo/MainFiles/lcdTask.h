@@ -47,7 +47,7 @@ portBASE_TYPE SendLCDTimerMsg(vtLCDStruct *lcdData,portTickType ticksElapsed,por
 // Return:
 //   Result of the call to xQueueSend()
 portBASE_TYPE SendLCDPrintMsg(vtLCDStruct *lcdData,int length,char *pString,portTickType ticksToBlock);
-portBASE_TYPE SendLCDGraphMsg(vtLCDStruct *lcdData,uint16_t data,portTickType ticksToBlock);
+portBASE_TYPE SendLCDGraphMsg(vtLCDStruct *lcdData,uint8_t *data,portTickType ticksToBlock);
 /* ********************************************************************* */
 
 

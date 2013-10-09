@@ -96,6 +96,10 @@ You should read the note above.
 #define USE_MTJ_V4Temp_Sensor 1
 // Define whether to use my USB task
 #define USE_MTJ_USE_USB 0
+// Define whether to use my web server task
+#define USE_WEB_SERVER 0
+//Define whether to use UART task
+#define USE_UART 1
 
 #if USE_FREERTOS_DEMO == 1
 /* Demo app includes. */
@@ -120,6 +124,7 @@ You should read the note above.
 #include "vtI2C.h"
 #include "myTimers.h"
 #include "conductor.h"
+#include "vtUART.h"
 
 /* syscalls initialization -- *must* occur first */
 #include "syscalls.h"
@@ -145,6 +150,7 @@ tick hook). */
 #define mainUSB_TASK_PRIORITY				( tskIDLE_PRIORITY)
 #define mainI2CMONITOR_TASK_PRIORITY		( tskIDLE_PRIORITY)
 #define mainCONDUCTOR_TASK_PRIORITY			( tskIDLE_PRIORITY)
+#define mainUARTMONITOR_TASK_PRIORITY		( tskIDLE_PRIORITY)
 
 /* The WEB server has a larger stack as it utilises stack hungry string
 handling library calls. */
@@ -190,6 +196,12 @@ static vtI2CStruct vtI2C0;
 static vtVoltStruct voltSensorData;
 // data structure required for conductor task
 static vtConductorStruct conductorData;
+#endif
+
+#if USE_UART == 1
+static UART_CFG_Type uartCfg;
+static UART_FIFO_CFG_Type fifoCfg;
+static vtUARTStruct vtUART1;
 #endif
 
 #if USE_MTJ_LCD == 1
@@ -248,6 +260,7 @@ int main( void )
 	if (vtI2CInit(&vtI2C0,0,mainI2CMONITOR_TASK_PRIORITY,100000) != vtI2CInitSuccess) {
 		VT_HANDLE_FATAL_ERROR(0);
 	}
+
 	// Now, start up the task that is going to handle the temperature sensor sampling (it will talk to the I2C task and LCD task using their APIs)
 	#if USE_MTJ_LCD == 1
 	vStarti2cVoltTask(&voltSensorData,mainI2CTEMP_TASK_PRIORITY,&vtI2C0,&vtLCDdata);
@@ -258,6 +271,14 @@ int main( void )
 	startTimerForVoltage(&voltSensorData);
 	// start up a "conductor" task that will move messages around
 	vStartConductorTask(&conductorData,mainCONDUCTOR_TASK_PRIORITY,&vtI2C0,&voltSensorData);
+	#endif
+
+	#if USE_UART == 1
+	UART_ConfigStructInit(&uartCfg);
+	UART_FIFOConfigStructInit(&fifoCfg);
+	if(vtUartInit(&vtUART1,1,mainUARTMONITOR_TASK_PRIORITY,&uartCfg,&fifoCfg) != vtUartInitSuccess) {
+		VT_HANDLE_FATAL_ERROR(0);
+	}
 	#endif
 
     /* Create the USB task. MTJ: This routine has been modified from the original example (which is not a FreeRTOS standard demo) */

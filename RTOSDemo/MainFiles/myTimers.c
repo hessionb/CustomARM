@@ -18,7 +18,7 @@
 //
 // how often the timer that sends messages to the LCD task should run
 // Set the task up to run every 100 ms
-#define lcdWRITE_RATE_BASE	( ( portTickType ) 100 / portTICK_RATE_MS)
+#define lcdWRITE_RATE_BASE	( ( portTickType ) 1000 / portTICK_RATE_MS)
 
 // Callback function that is called by the LCDTimer
 //   Sends a message to the queue that is read by the LCD Task
@@ -34,10 +34,10 @@ void LCDTimerCallback(xTimerHandle pxTimer)
 		vtLCDStruct *ptr = (vtLCDStruct *) pvTimerGetTimerID(pxTimer);
 		// Make this non-blocking *but* be aware that if the queue is full, this routine
 		// will not care, so if you care, you need to check something
-		/*if (SendLCDTimerMsg(ptr,lcdWRITE_RATE_BASE,0) == errQUEUE_FULL) {
+		if (SendLCDTimerMsg(ptr,lcdWRITE_RATE_BASE,0) == errQUEUE_FULL) {
 			// Here is where you would do something if you wanted to handle the queue being full
 			VT_HANDLE_FATAL_ERROR(0);
-		} */
+		}
 	}
 }
 
@@ -60,7 +60,7 @@ void startTimerForLCD(vtLCDStruct *vtLCDdata) {
 //
 // how often the timer that sends messages to the LCD task should run
 // Set the task up to run every 500 ms
-#define tempWRITE_RATE_BASE	( ( portTickType ) 100 / portTICK_RATE_MS)
+#define tempWRITE_RATE_BASE	( ( portTickType ) 32 / portTICK_RATE_MS)
 
 // Callback function that is called by the TemperatureTimer
 //   Sends a message to the queue that is read by the Temperature Task

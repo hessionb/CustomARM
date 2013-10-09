@@ -83,7 +83,7 @@ static portTASK_FUNCTION( vConductorUpdateTask, pvParameters )
 			break;
 		}
 		case vtI2CMsgTypeVoltRead: {
-			SendVoltValueMsg(voltData,recvMsgType,Buffer,3,portMAX_DELAY);
+			SendVoltValueMsg(voltData,recvMsgType,Buffer,8,portMAX_DELAY);
 			break;
 		}
 		default: {

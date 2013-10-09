@@ -120,7 +120,7 @@ to exclude the API function. */
 /* IP address configuration. */
 #define configIP_ADDR0		192
 #define configIP_ADDR1		168
-#define configIP_ADDR2		3
+#define configIP_ADDR2		1
 #define configIP_ADDR3		20
 
 /* Netmask configuration. */

@@ -101,23 +101,16 @@ int getMsgType(vtVoltMsg *Buffer)
 	return(Buffer->msgType);
 }
 
-uint16_t getValue(vtVoltMsg *Buffer)
+void getValue(uint8_t *source,vtVoltMsg *Buffer,uint8_t size)
 {
-	uint16_t retval = 0;
-	uint8_t high,low;
-	uint8_t *ptr = (uint8_t *) Buffer->buf;
-	high = ptr[0];
-	low = ptr[1];
-	retval = retval | high;
-	retval = (retval << 8) | low;
-	return retval;
+	memcpy(source,Buffer->buf,size);
 }
 
 // I2C commands for the temperature sensor
 const uint8_t i2cCmdInit[]= {0xAC,0x00};
 const uint8_t i2cCmdStartConvert[]= {0xEE};
 const uint8_t i2cCmdStopConvert[]= {0x22};
-const uint8_t i2cCmdReadVals[]= {0xAA};
+const uint8_t i2cCmdRead1Vals[]= {0xAA};
 // end of I2C command definitions
 
 // State Machine
@@ -137,6 +130,8 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 	// Buffer for receiving messages
 	vtVoltMsg msgBuffer;
 	uint8_t currentState;
+	// I2C Volt message buffer
+	uint8_t data[8];
 
 	// Assumes that the I2C device (and thread) have already been initialized
 
@@ -175,7 +170,7 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 			case VoltMsgTypeTimer: {
 				// Timer messages never change the state, they just cause an action (or not) 
 				if (currentState != fsmStateInitSent) {
-					if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltRead,0x4F,sizeof(i2cCmdReadVals),i2cCmdReadVals,3) != pdTRUE) {
+					if (vtI2CEnQ(devPtr,vtI2CMsgTypeVoltRead,0x4F,sizeof(i2cCmdRead1Vals),i2cCmdRead1Vals,8) != pdTRUE) {
 						VT_HANDLE_FATAL_ERROR(0);
 					}
 				} else {
@@ -187,9 +182,9 @@ static portTASK_FUNCTION( vi2cVoltUpdateTask, pvParameters )
 			// Get Volt Data
 			case vtI2CMsgTypeVoltRead: {
 				if (currentState == fsmStateVoltRead) {
-					uint16_t value=getValue(&msgBuffer);
+					getValue(data,&msgBuffer,8);
 					if (lcdData != NULL) {
-						if (SendLCDGraphMsg(lcdData,value,portMAX_DELAY) != pdTRUE) {
+						if (SendLCDGraphMsg(lcdData,data,portMAX_DELAY) != pdTRUE) {
 							VT_HANDLE_FATAL_ERROR(0);
 						}
 					}
